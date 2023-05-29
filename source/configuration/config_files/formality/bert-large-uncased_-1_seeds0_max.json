@@ -1,0 +1,13 @@
+{
+  "features": "['formality']",
+  "LM_names": {
+    "formality": "bert-large-uncased"
+  },
+  "layers": {
+    "formality": -1
+  },
+  "seeds_fns": {
+    "formality": "data/formality/seeds/seeds_0.csv"
+  },
+  "pooling": "max"
+}

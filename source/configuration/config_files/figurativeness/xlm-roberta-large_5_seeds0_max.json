@@ -1,0 +1,13 @@
+{
+  "features": "['figurativeness']",
+  "LM_names": {
+    "figurativeness": "xlm-roberta-large"
+  },
+  "layers": {
+    "figurativeness": 5
+  },
+  "seeds_fns": {
+    "figurativeness": "data/figurativeness/seeds/seeds_0.csv"
+  },
+  "pooling": "max"
+}

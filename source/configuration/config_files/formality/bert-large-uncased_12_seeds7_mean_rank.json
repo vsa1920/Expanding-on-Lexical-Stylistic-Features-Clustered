@@ -1,0 +1,15 @@
+{
+  "features": "['formality']",
+  "LM_names": {
+    "formality": "bert-large-uncased"
+  },
+  "layers": {
+    "formality": 12
+  },
+  "seeds_fns": {
+    "formality": "data/formality/seeds/seeds_7.csv"
+  },
+  "layeragg": false,
+  "pooling": "mean",
+  "isotropy": "rank"
+}

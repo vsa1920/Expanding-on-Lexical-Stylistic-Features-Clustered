@@ -1,0 +1,15 @@
+{
+  "features": "['complexity']",
+  "LM_names": {
+    "complexity": "bert-base-multilingual-uncased"
+  },
+  "layers": {
+    "complexity": 0
+  },
+  "seeds_fns": {
+    "complexity": "data/complexity/seeds/seeds_7.csv"
+  },
+  "layeragg": false,
+  "pooling": "max",
+  "isotropy": "abtt"
+}

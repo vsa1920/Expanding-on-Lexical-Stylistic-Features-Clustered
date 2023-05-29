@@ -1,0 +1,13 @@
+{
+  "features": "['complexity']",
+  "LM_names": {
+    "complexity": "bert-large-uncased"
+  },
+  "layers": {
+    "complexity": 3
+  },
+  "seeds_fns": {
+    "complexity": "data/complexity/seeds/seeds_0.csv"
+  },
+  "pooling": "max"
+}

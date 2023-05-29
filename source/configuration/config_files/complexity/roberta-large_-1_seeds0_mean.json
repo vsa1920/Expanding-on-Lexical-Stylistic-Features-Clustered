@@ -1,0 +1,13 @@
+{
+  "features": "['complexity']",
+  "LM_names": {
+    "complexity": "roberta-large"
+  },
+  "layers": {
+    "complexity": -1
+  },
+  "seeds_fns": {
+    "complexity": "data/complexity/seeds/seeds_0.csv"
+  },
+  "pooling": "mean"
+}

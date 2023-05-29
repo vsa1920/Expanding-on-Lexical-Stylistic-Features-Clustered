@@ -1,0 +1,13 @@
+{
+  "features": "['figurativeness']",
+  "LM_names": {
+    "figurativeness": "bert-large-uncased"
+  },
+  "layers": {
+    "figurativeness": 7
+  },
+  "seeds_fns": {
+    "figurativeness": "data/figurativeness/seeds/seeds_0.csv"
+  },
+  "pooling": "mean"
+}

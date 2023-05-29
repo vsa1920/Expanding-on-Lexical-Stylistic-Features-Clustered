@@ -1,0 +1,5 @@
+{
+  "LM": "bert-base-multilingual-uncased",
+  "layer": -2,
+  "seeds_fn": "data/formality/seeds/seeds_1.csv"
+}

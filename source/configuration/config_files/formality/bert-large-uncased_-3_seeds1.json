@@ -1,0 +1,5 @@
+{
+  "LM": "bert-large-uncased",
+  "layer": -3,
+  "seeds_fn": "data/formality/seeds/seeds_1.csv"
+}

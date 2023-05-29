@@ -1,0 +1,13 @@
+{
+  "features": "['complexity']",
+  "LM_names": {
+    "complexity": "xlm-roberta-base"
+  },
+  "layers": {
+    "complexity": 8
+  },
+  "seeds_fns": {
+    "complexity": "data/complexity/seeds/seeds_0.csv"
+  },
+  "pooling": "max"
+}

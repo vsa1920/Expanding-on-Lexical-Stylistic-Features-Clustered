@@ -1,0 +1,13 @@
+{
+  "features": "['formality']",
+  "LM_names": {
+    "formality": "glove.6B.300d_seeds0_mean"
+  },
+  "layers": {
+    "formality": null
+  },
+  "seeds_fn": {
+    "formality": "data/formality/seeds/seeds_0.csv"
+  },
+  "pooling": "max"
+}

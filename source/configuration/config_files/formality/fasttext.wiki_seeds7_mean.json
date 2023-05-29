@@ -1,0 +1,13 @@
+{
+  "features": "['formality']",
+  "LM_names": {
+    "formality": "fasttext.wiki"
+  },
+  "layers": {
+    "formality": null
+  },
+  "seeds_fns": {
+    "formality": "data/formality/seeds/seeds_7.csv"
+  },
+  "pooling": "mean"
+}

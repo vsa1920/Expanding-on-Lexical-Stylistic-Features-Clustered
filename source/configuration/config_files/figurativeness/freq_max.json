@@ -1,0 +1,5 @@
+{
+  "features": "['figurativeness']",
+  "freq_fn": "data/google_ngrams/1gram_counts.tsv",
+  "pooling": "max"
+}

@@ -1,0 +1,13 @@
+{
+  "features": "['figurativeness']",
+  "LM_names": {
+    "figurativeness": "bert-base-multilingual-uncased"
+  },
+  "layers": {
+    "figurativeness": -2
+  },
+  "seeds_fns": {
+    "figurativeness": "data/figurativeness/seeds/seeds_0.csv"
+  },
+  "pooling": "mean"
+}

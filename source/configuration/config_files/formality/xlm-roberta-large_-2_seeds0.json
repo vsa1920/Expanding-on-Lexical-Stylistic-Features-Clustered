@@ -1,0 +1,5 @@
+{
+  "LM": "xlm-roberta-large",
+  "layer": -2,
+  "seeds_fn": "data/formality/seeds/seeds_0.csv"
+}

@@ -1,0 +1,14 @@
+{
+  "features": "['formality']",
+  "LM_names": {
+    "formality": "roberta-base"
+  },
+  "layers": {
+    "formality": -1
+  },
+  "seeds_fns": {
+    "formality": "data/formality/seeds/seeds_7.csv"
+  },
+  "layeragg": true,
+  "pooling": "max"
+}

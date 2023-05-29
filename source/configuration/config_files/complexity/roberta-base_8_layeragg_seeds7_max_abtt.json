@@ -1,0 +1,15 @@
+{
+  "features": "['complexity']",
+  "LM_names": {
+    "complexity": "roberta-base"
+  },
+  "layers": {
+    "complexity": 8
+  },
+  "seeds_fns": {
+    "complexity": "data/complexity/seeds/seeds_7.csv"
+  },
+  "layeragg": true,
+  "pooling": "max",
+  "isotropy": "abtt"
+}

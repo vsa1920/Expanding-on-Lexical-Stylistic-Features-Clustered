@@ -1,0 +1,6 @@
+{
+  "LM": "bert-base-uncased",
+  "layer": -1,
+  "seeds_fn": "data/seeds.csv",
+  "pooling": "mean"
+}

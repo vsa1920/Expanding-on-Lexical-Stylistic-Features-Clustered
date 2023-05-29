@@ -1,0 +1,13 @@
+{
+  "features": "['figurativeness']",
+  "LM_names": {
+    "figurativeness": "glove.6B.300d"
+  },
+  "layers": {
+    "figurativeness": null
+  },
+  "seeds_fns": {
+    "figurativeness": "data/figurativeness/seeds/seeds_0.csv"
+  },
+  "pooling": "max"
+}

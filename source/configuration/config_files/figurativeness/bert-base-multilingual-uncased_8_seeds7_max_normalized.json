@@ -1,0 +1,15 @@
+{
+  "features": "['figurativeness']",
+  "LM_names": {
+    "figurativeness": "bert-base-multilingual-uncased"
+  },
+  "layers": {
+    "figurativeness": 8
+  },
+  "seeds_fns": {
+    "figurativeness": "data/figurativeness/seeds/seeds_7.csv"
+  },
+  "layeragg": false,
+  "pooling": "max",
+  "isotropy": "normalized"
+}

@@ -1,0 +1,13 @@
+{
+  "features": "['formality']",
+  "LM_names": {
+    "formality": "roberta-large"
+  },
+  "layers": {
+    "formality": 5
+  },
+  "seeds_fns": {
+    "formality": "data/formality/seeds/seeds_0.csv"
+  },
+  "pooling": "mean"
+}
