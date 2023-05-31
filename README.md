@@ -1,7 +1,5 @@
 # Lexical-Stylistic-Features
-Code and data accompanying our paper "Representation of Lexical Stylistic Features in Language Models' Embedding Space" to appear at [*SEM 2023](https://sites.google.com/view/starsem2023).
-
-ArXiv link coming soon!
+Code and data accompanying our paper ["Representation of Lexical Stylistic Features in Language Models' Embedding Space"](https://arxiv.org/abs/2305.18657) to appear at [*SEM 2023](https://sites.google.com/view/starsem2023).
 
 ## Get started
 
