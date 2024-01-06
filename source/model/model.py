@@ -21,6 +21,7 @@ import matplotlib.pyplot as plt
 from dataset.utils import PREDICTED_CLASS_MAP
 from utils import POS_TAGS, load_spacy, load_model_and_tokenizer, get_static_embedding, spearman_correlation
 from configuration.configuration import Config
+from scipy import cluster as clst
 
 class GoldModel:
 	def __init__(self):
@@ -48,11 +49,13 @@ class FreqFeaturizer:
 	def load_freq_counts(self, frn):
 		ngram_counts = {}
 		assert os.path.exists(frn), f"File {frn} does not exist. Current working directory: {os.getcwd()}."
-		with open(frn, "r") as fr:
-			reader = csv.DictReader(fr, delimiter="\t")
-			for row in reader:
-				ngram, count = row["word"].lower(), int(row["count"])
-				ngram_counts[ngram] = count
+		with open(frn, "r") as f:
+			for line in f:
+				token, count = line.strip().split('\t')
+				ngram_counts[token.lower()] = int(count)
+                # 			for row in reader:
+                # 				ngram, count = row["word"].lower(), int(row["count"])
+                # 				ngram_counts[ngram] = count
 		return ngram_counts
 
 	def parse_batch(self, texts):
@@ -159,6 +162,14 @@ class LexicalFeaturizer:
 
 		# isotropy reduction strategy
 		self.isotropy = config.isotropy
+		self.clustered_isotropy = config.clustered_isotropy
+		if self.clustered_isotropy:
+			self.n_cluster = config.n_cluster
+			try:
+				self.cluster_iter = config.cluster_iter
+			except:
+				self.cluster_iter = 10
+		self.n_components = config.n_components
 		assert self.isotropy in [None, "normalized", "abtt", "rank"], f"Isotropy improvement method {self.isotropy} is not supported."
 		if self.isotropy:
 			self.isotropy_vecs = {feature:{"mean": None,
@@ -178,9 +189,9 @@ class LexicalFeaturizer:
 			seeds_fn = self.seeds_fns[feature]
 			assert seeds_fn, f"Please specify the seeds file for {feature}."
 			seeds_id = seeds_fn.split('/')[-1].split('.')[0].split('_')[1]
-			self.dvec_fns[feature] = f"data/{feature}/dvecs/{self.LM_names[feature]}_{self.layers[feature]}{'_layeragg' if self.layeragg else ''}_seeds{seeds_id}{f'_{self.isotropy}' if self.isotropy else ''}_dvec.pkl"
+			self.dvec_fns[feature] = f"data/{feature}/dvecs/{self.LM_names[feature]}_{self.layers[feature]}{'_layeragg' if self.layeragg else ''}_seeds{seeds_id}{f'_{self.isotropy}' if self.isotropy else ''}{f'_cluster' if self.clustered_isotropy else ''}_dvec.pkl"
 			if self.isotropy:
-				self.isotropy_vec_fns[feature] = f"data/{feature}/dvecs/{self.LM_names[feature]}_{self.layers[feature]}{'_layeragg' if self.layeragg else ''}_seeds{seeds_id}{f'_{self.isotropy}' if self.isotropy else ''}_isovec.pkl"
+				self.isotropy_vec_fns[feature] = f"data/{feature}/dvecs/{self.LM_names[feature]}_{self.layers[feature]}{'_layeragg' if self.layeragg else ''}_seeds{seeds_id}{f'_{self.isotropy}' if self.isotropy else ''}{f'_cluster' if self.clustered_isotropy else ''}_isovec.pkl"
 
 		self.dvecs = {feature: None for feature in self.features}
 		self.LMs = {feature: None for feature in self.features}
@@ -288,7 +299,105 @@ class LexicalFeaturizer:
 			pos_tags_for_docs.append(pos_tags)
 		return tokens_for_docs, pos_tags_for_docs
 
-	def generate_dvecs(self):
+	def generate_dvecs(self, training_data):
+		'''Generate the dvec representing the feature from the seeds, and save it to the self.dvec_fn file.'''
+
+		for feature in self.features:
+			already_generated = True
+			if not os.path.exists(self.dvec_fns[feature]):
+				already_generated = False
+			if not (self.isotropy and os.path.exists(self.isotropy_vec_fns[feature])):
+				already_generated = False
+
+			seeds_fn = self.seeds_fns[feature]
+
+			with open(seeds_fn, 'r') as seeds_fr:
+				reader = csv.DictReader(seeds_fr)
+				fless_texts, fmore_texts = [], []
+				for row in reader:
+					# fless means the feature is less strong (e.g., simple, informal)
+					# fmore means the feature is more strong (e.g., complex, formal)
+					fless_text, fmore_text = row["0"], row["1"]
+					fless_texts.append(fless_text)
+					fmore_texts.append(fmore_text)
+
+				seed_texts = [f"{fmore_text} - {fless_text}" for fless_text, fmore_text in zip(fless_texts, fmore_texts)]
+				tokens_for_fless_texts, _ = self.parse_batch(fless_texts)
+				tokens_for_fmore_texts, _ = self.parse_batch(fmore_texts)
+
+				fless_embs = self.get_embeddings(tokens_for_fless_texts, feature=feature) # a list of tensors, each of shape (n_token,emb_dim)
+				# compute the average of the embeddings of the tokens in each text
+				fless_embs_mean = []
+				for emb in fless_embs:
+					mean_emb = torch.mean(emb, dim=0)
+					fless_embs_mean.append(mean_emb)
+				fless_embs_mean = torch.stack(fless_embs_mean)
+
+				fmore_embs = self.get_embeddings(tokens_for_fmore_texts, feature=feature)
+				# compute the average of the embeddings of the tokens in each text
+				fmore_embs_mean = []
+				for emb in fmore_embs:
+					mean_emb = torch.mean(emb, dim=0)
+					fmore_embs_mean.append(mean_emb)
+				fmore_embs_mean = torch.stack(fmore_embs_mean)
+
+			# subtract each simple embedding from each complex embedding
+			diff_embs = fmore_embs_mean - fless_embs_mean
+			# visualize the embeddings
+			# self.visualize_vecs(diff_embs, seed_texts)
+
+			# get dvec by taking the average of the differences
+			dvec = torch.mean(diff_embs, dim=0)
+			self.dvecs[feature] = dvec
+			# save the dvec to the file
+			dvec_path = "/".join(self.dvec_fns[feature].split("/")[:-1])
+			if not os.path.exists(dvec_path):
+				os.makedirs(dvec_path)
+			with open(self.dvec_fns[feature], 'wb') as dvec_fw:
+				pickle.dump(dvec, dvec_fw)
+
+			# compute isotropy vecs
+			if self.isotropy:
+				text0s, text1s = [], []
+				for i, example in enumerate(training_data):
+					text0, text1 = example["0"], example["1"]
+					text0s.append(text0)
+					text1s.append(text1)
+				tokens_0, _ = self.parse_batch(text0s)
+				tokens_1, _ = self.parse_batch(text1s)
+				embs_0 = self.get_embeddings(tokens_0, feature=feature)
+				embs_1 = self.get_embeddings(tokens_1, feature=feature)
+
+				embs0_mean = []
+				for emb in embs_0:
+					mean_emb = torch.mean(emb, dim=0)
+					embs0_mean.append(mean_emb)
+				embs0_mean = torch.stack(embs0_mean)
+
+				embs1_mean = []
+				for emb in embs_0:
+					mean_emb = torch.mean(emb, dim=0)
+					embs1_mean.append(mean_emb)
+				embs1_mean = torch.stack(embs1_mean)
+
+				# stack fless_embs_mean and fmore_embs_mean
+				all_embs = torch.cat((embs0_mean, embs1_mean), dim=0) # (n_texts, emb_dim)
+				if self.clustered_isotropy:
+					#print(type(all_embs, all_embs.shape))
+					isotropy_vecs = self.compute_clustered_mean_std_pcs(all_embs, self.n_cluster)
+				else:
+					isotropy_vecs = self.compute_mean_std_pcs(all_embs)
+				self.isotropy_vecs[feature]["mean"] = isotropy_vecs["mean"]
+				self.isotropy_vecs[feature]["std"] = isotropy_vecs["std"]
+				self.isotropy_vecs[feature]["pcs"] = isotropy_vecs["pcs"]
+				if self.clustered_isotropy:
+					self.isotropy_vecs[feature]["centroids"] = isotropy_vecs["centroids"]
+				# save the isotropy vecs to the file
+				isotropy_fwn = self.isotropy_vec_fns[feature]
+				with open(isotropy_fwn, 'wb') as isotropy_fw:
+					pickle.dump(self.isotropy_vecs, isotropy_fw)
+	
+	def generate_dvecs_backup(self):
 		'''Generate the dvec representing the feature from the seeds, and save it to the self.dvec_fn file.'''
 
 		for feature in self.features:
@@ -317,7 +426,7 @@ class LexicalFeaturizer:
 				tokens_for_fless_texts, _ = self.parse_batch(fless_texts)
 				tokens_for_fmore_texts, _ = self.parse_batch(fmore_texts)
 
-				fless_embs = self.get_embeddings(tokens_for_fless_texts, feature=feature) # a list of tensors, each of shape (n_tokens, emb_dim)
+				fless_embs = self.get_embeddings(tokens_for_fless_texts, feature=feature) # a list of tensors, each of shape (n_token,emb_dim)
 				# compute the average of the embeddings of the tokens in each text
 				fless_embs_mean = []
 				for emb in fless_embs:
@@ -352,10 +461,16 @@ class LexicalFeaturizer:
 			if self.isotropy:
 				# stack fless_embs_mean and fmore_embs_mean
 				all_embs = torch.cat((fless_embs_mean, fmore_embs_mean), dim=0) # (n_texts, emb_dim)
-				isotropy_vecs = self.compute_mean_std_pcs(all_embs)
+				if self.clustered_isotropy:
+					#print(type(all_embs, all_embs.shape))
+					isotropy_vecs = self.compute_clustered_mean_std_pcs(all_embs, self.n_cluster)
+				else:
+					isotropy_vecs = self.compute_mean_std_pcs(all_embs)
 				self.isotropy_vecs[feature]["mean"] = isotropy_vecs["mean"]
 				self.isotropy_vecs[feature]["std"] = isotropy_vecs["std"]
 				self.isotropy_vecs[feature]["pcs"] = isotropy_vecs["pcs"]
+				if self.clustered_isotropy:
+					self.isotropy_vecs[feature]["centroids"] = isotropy_vecs["centroids"]
 				# save the isotropy vecs to the file
 				isotropy_fwn = self.isotropy_vec_fns[feature]
 				with open(isotropy_fwn, 'wb') as isotropy_fw:
@@ -388,9 +503,16 @@ class LexicalFeaturizer:
 				isotropy_frn = self.isotropy_vec_fns[feature]
 				with open(isotropy_frn, 'rb') as isotropy_fr:
 					self.isotropy_vecs = pickle.load(isotropy_fr)
-				self.isotropy_vecs[feature]["mean"] = self.isotropy_vecs[feature]["mean"].to(device)
-				self.isotropy_vecs[feature]["std"] = self.isotropy_vecs[feature]["std"].to(device)
-				self.isotropy_vecs[feature]["pcs"] = self.isotropy_vecs[feature]["pcs"].to(device)
+				if self.clustered_isotropy:
+					self.isotropy_vecs[feature]["mean"] = [x.to(device) for x in self.isotropy_vecs[feature]["mean"]]
+					self.isotropy_vecs[feature]["std"] = [x.to(device) for x in self.isotropy_vecs[feature]["std"]]
+					self.isotropy_vecs[feature]["pcs"] = [x.to(device) for x in self.isotropy_vecs[feature]["pcs"]]
+					self.isotropy_vecs[feature]["centroids"] = [x.to(device) for x in self.isotropy_vecs[feature]["centroids"]]
+				else:
+					self.isotropy_vecs[feature]["mean"] = self.isotropy_vecs[feature]["mean"].to(device)
+					self.isotropy_vecs[feature]["std"] = self.isotropy_vecs[feature]["std"].to(device)
+					self.isotropy_vecs[feature]["pcs"] = self.isotropy_vecs[feature]["pcs"].to(device)
+				
 
 	def similarity(self, emb1, emb2, feature):
 		'''Compute the generalized cosine similarity between two embeddings.
@@ -408,26 +530,51 @@ class LexicalFeaturizer:
 			# convert to tensor
 			corr = torch.tensor(corr, dtype=torch.float32, device=device)
 			return corr
+            
+		if self.clustered_isotropy:
+			n = len(self.isotropy_vecs[feature]["centroids"])
+			c_idx1 = np.argmin([torch.norm(self.isotropy_vecs[feature]["centroids"][i] - emb1).item() for i in range(n)])
+			c_idx2 = np.argmin([torch.norm(self.isotropy_vecs[feature]["centroids"][i] - emb2).item() for i in range(n)])
+			emb1_mean_rm = (emb1 - self.isotropy_vecs[feature]["mean"][c_idx1])
+			emb2_mean_rm = (emb2 - self.isotropy_vecs[feature]["mean"][c_idx2])
 
-		emb1_mean_rm = (emb1 - self.isotropy_vecs[feature]["mean"])
-		emb2_mean_rm = (emb2 - self.isotropy_vecs[feature]["mean"])
+			if self.isotropy == "normalized":
+				emb1_normalized = emb1_mean_rm / self.isotropy_vecs[feature]["std"][c_idx1]
+				emb2_normalized = emb2_mean_rm / self.isotropy_vecs[feature]["std"][c_idx2]
+				return cosine_similarity(emb1_normalized, emb2_normalized, dim=0)
 
-		if self.isotropy == "normalized":
-			emb1_normalized = emb1_mean_rm / self.isotropy_vecs[feature]["std"]
-			emb2_normalized = emb2_mean_rm / self.isotropy_vecs[feature]["std"]
-			return cosine_similarity(emb1_normalized, emb2_normalized, dim=0)
+			if self.isotropy == "abtt":
+				# removing the pcs from the embeddings
+				pcs1 = self.isotropy_vecs[feature]["pcs"][c_idx1]
+				pcs2 = self.isotropy_vecs[feature]["pcs"][c_idx2]
+				# Compute dot products of pcs with emb1_mean_rm and emb2_mean_rm
+				pc_dot1 = pcs1 @ emb1_mean_rm
+				pc_dot2 = pcs2 @ emb2_mean_rm
+				rm_term1 = (pc_dot1[..., None] * pcs1).sum(axis=0)
+				rm_term2 = (pc_dot2[..., None] * pcs2).sum(axis=0)
+				emb1_abtt = emb1_mean_rm - rm_term1
+				emb2_abtt = emb2_mean_rm - rm_term2
+				return cosine_similarity(emb1_abtt, emb2_abtt, dim=0)
+		else:
+			emb1_mean_rm = (emb1 - self.isotropy_vecs[feature]["mean"])
+			emb2_mean_rm = (emb2 - self.isotropy_vecs[feature]["mean"])
 
-		if self.isotropy == "abtt":
-			# removing the pcs from the embeddings
-			pcs = self.isotropy_vecs[feature]["pcs"]
-			# Compute dot products of pcs with emb1_mean_rm and emb2_mean_rm
-			pc_dot1 = pcs @ emb1_mean_rm
-			pc_dot2 = pcs @ emb2_mean_rm
-			rm_term1 = (pc_dot1[..., None] * pcs).sum(axis=0)
-			rm_term2 = (pc_dot2[..., None] * pcs).sum(axis=0)
-			emb1_abtt = emb1_mean_rm - rm_term1
-			emb2_abtt = emb2_mean_rm - rm_term2
-			return cosine_similarity(emb1_abtt, emb2_abtt, dim=0)
+			if self.isotropy == "normalized":
+				emb1_normalized = emb1_mean_rm / self.isotropy_vecs[feature]["std"]
+				emb2_normalized = emb2_mean_rm / self.isotropy_vecs[feature]["std"]
+				return cosine_similarity(emb1_normalized, emb2_normalized, dim=0)
+
+			if self.isotropy == "abtt":
+				# removing the pcs from the embeddings
+				pcs = self.isotropy_vecs[feature]["pcs"]
+				# Compute dot products of pcs with emb1_mean_rm and emb2_mean_rm
+				pc_dot1 = pcs @ emb1_mean_rm
+				pc_dot2 = pcs @ emb2_mean_rm
+				rm_term1 = (pc_dot1[..., None] * pcs).sum(axis=0)
+				rm_term2 = (pc_dot2[..., None] * pcs).sum(axis=0)
+				emb1_abtt = emb1_mean_rm - rm_term1
+				emb2_abtt = emb2_mean_rm - rm_term2
+				return cosine_similarity(emb1_abtt, emb2_abtt, dim=0)
 
 		raise ValueError("isotropy must be one of 'rank', 'normalized', 'abtt', or None.")
 
@@ -563,7 +710,44 @@ class LexicalFeaturizer:
 		pcs = torch.from_numpy(pcs).to(device)
 
 		return {"mean": means, "std": stds, "pcs": pcs}
+	
+	def compute_clustered_mean_std_pcs(self, embeddings:torch.Tensor, n_cluster) -> dict:
+		'''Compute the mean, the standard deviation, and the principal components of embeddings (for isotropy reduction).
+		:param embeddings: embeddings of the texts, a Tensor of shape (n_texts, n_dim)
+    	:return: dict of mean (n_dim), standard deviation (n_dim), and principal components (n_components, n_dim)
+    	'''
+		centroid, label=clst.vq.kmeans2(embeddings.cpu().detach().numpy(), n_cluster, minit='++',
+                                missing='warn', check_finite=True, seed=100, iter=self.cluster_iter)
+		# compute the mean
+		means_lst = []
+		std_lst = []
+		pcs_lst = []
+		n_components = self.n_components#int(embeddings.shape[1] / 100) # removing n_dim/100 components
+		normalized_embeddings = torch.zeros_like(embeddings)
+		# move to cpu
+		normalized_embeddings = normalized_embeddings.cpu().numpy()
+		cluster_lst = []
 
+		for i in range(n_cluster):
+			idx = torch.where(torch.tensor(label) == i)
+			if (len(idx[0]) < 10):
+				continue
+			cluster_lst.append(i)
+			means = torch.mean(embeddings[idx], dim=0)
+			means_lst.append(means)
+			std_lst.append(torch.std(embeddings[idx], dim=0))
+			# normalize the layer embedding
+			normalized_embeddings[idx] = (embeddings[idx] - means).cpu().numpy()
+			# compute the principal components
+			pca = PCA(n_components=n_components)
+			pca.fit(normalized_embeddings[idx])
+			pcs = pca.components_
+
+			# convert to torch tensor
+			pcs = torch.from_numpy(pcs).to(device)
+			pcs_lst.append(pcs)
+
+		return {"mean": means_lst, "std": std_lst, "pcs": pcs_lst, "centroids": torch.from_numpy(centroid[cluster_lst, :]).to(device)}
 
 if __name__ == "__main__":
 	# run a simple test

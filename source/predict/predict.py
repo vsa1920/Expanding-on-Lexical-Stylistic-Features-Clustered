@@ -34,6 +34,14 @@ if __name__ == "__main__":
 	config_frn = f"source/configuration/config_files/{feature}/{model_name}.json"
 	config = Config.from_json_file(config_frn)
 
+	# load dataset
+	dataset_frn = f"data/{feature}/{dataset_name}/{split}.csv"
+	train_frn = f"data/{feature}/{dataset_name}/train.csv"
+	dataset = load_dataset(dataset_frn)
+	dataset_train = load_dataset(train_frn)
+	if debug:
+		dataset = dataset[:50]
+	
 	if model_name == "gold":
 		model = GoldModel()
 	elif "freq" in model_name:
@@ -41,13 +49,7 @@ if __name__ == "__main__":
 	else:
 		model = LexicalFeaturizer(config)
 		model.load_LM()
-		model.generate_dvecs()
-
-	# load dataset
-	dataset_frn = f"data/{feature}/{dataset_name}/{split}.csv"
-	dataset = load_dataset(dataset_frn)
-	if debug:
-		dataset = dataset[:50]
+		model.generate_dvecs(dataset_train)
 
 	# predict
 	predicted_class = PREDICTED_CLASS[feature]
